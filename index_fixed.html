@@ -1,0 +1,1887 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Market ABC • Apriori Analyzer (Kategori)</title>
+
+  <!-- SheetJS (Excel parser + writer) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg0:#070A12;
+      --bg1:#0B1020;
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.10);
+      --stroke:rgba(255,255,255,.12);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.68);
+      --muted2:rgba(255,255,255,.52);
+      --good:#41f2b6;
+      --warn:#ffd166;
+      --bad:#ff5d73;
+      --accent:#7c5cff;
+      --accent2:#16d9ff;
+      --shadow: 0 18px 50px rgba(0,0,0,.55);
+      --radius:18px;
+      --radius2:28px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 900px at 10% 10%, rgba(124,92,255,.25), transparent 55%),
+        radial-gradient(1200px 900px at 90% 20%, rgba(22,217,255,.18), transparent 55%),
+        radial-gradient(900px 900px at 60% 110%, rgba(65,242,182,.12), transparent 60%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow-x:hidden;
+    }
+
+    .noise{
+      position:fixed; inset:0;
+      pointer-events:none;
+      opacity:.08;
+      mix-blend-mode:overlay;
+      background-image:url('data:image/svg+xml;utf8,<svg xmlns="https://www.w3.org/2000/svg" width="220" height="220"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="2" stitchTiles="stitch"/></filter><rect width="220" height="220" filter="url(%23n)" opacity=".55"/></svg>');
+      animation: drift 10s linear infinite;
+    }
+    @keyframes drift{ from{transform:translate3d(0,0,0)} to{transform:translate3d(-90px,-60px,0)} }
+
+    .topbar{
+      position:sticky; top:0; z-index:50;
+      backdrop-filter: blur(14px);
+      background: linear-gradient(180deg, rgba(8,10,18,.75), rgba(8,10,18,.35));
+      border-bottom:1px solid var(--stroke);
+    }
+    .wrap{max-width:1180px; margin:0 auto; padding:16px 18px}
+    .toprow{display:flex; align-items:center; gap:14px; justify-content:space-between}
+    .brand{display:flex; gap:12px; align-items:center; user-select:none;}
+    .logo{
+      width:42px; height:42px; border-radius:14px;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), rgba(255,255,255,.08)),
+                  linear-gradient(135deg, rgba(124,92,255,.9), rgba(22,217,255,.8));
+      box-shadow: 0 12px 30px rgba(124,92,255,.18), 0 12px 26px rgba(22,217,255,.10);
+      position:relative; overflow:hidden;
+    }
+    .logo:after{
+      content:"";
+      position:absolute; inset:-40%;
+      background: conic-gradient(from 140deg, transparent, rgba(255,255,255,.22), transparent);
+      animation: spin 3.6s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .brand h1{font-size:14px; margin:0; letter-spacing:.5px}
+    .brand .sub{font-size:12px; color:var(--muted2)}
+    nav{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .tab{
+      border:1px solid var(--stroke);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      padding:10px 12px;
+      border-radius:14px;
+      cursor:pointer;
+      transition:.18s ease;
+      font-size:13px;
+      display:flex; gap:8px; align-items:center;
+    }
+    .tab:hover{transform:translateY(-1px); background:rgba(255,255,255,.06); color:var(--text)}
+    .tab.active{
+      background: linear-gradient(135deg, rgba(124,92,255,.25), rgba(22,217,255,.16));
+      border-color: rgba(124,92,255,.35);
+      color:var(--text);
+      box-shadow: 0 10px 26px rgba(124,92,255,.12);
+    }
+
+    .grid{display:grid; grid-template-columns: 1.2fr .8fr; gap:16px; align-items:start;}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
+
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      border:1px solid var(--stroke);
+      border-radius: var(--radius2);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .card .hd{
+      padding:16px 18px;
+      border-bottom:1px solid var(--stroke);
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    }
+    .card .hd .title{display:flex; flex-direction:column; gap:4px;}
+    .card .hd h2{margin:0; font-size:14px; letter-spacing:.4px;}
+    .card .hd p{margin:0; font-size:12px; color:var(--muted); line-height:1.4;}
+    .card .bd{padding:16px 18px}
+
+    .btn{
+      border:1px solid var(--stroke);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:14px;
+      cursor:pointer;
+      transition:.18s ease;
+      font-size:13px;
+      display:inline-flex; gap:8px; align-items:center; justify-content:center;
+    }
+    .btn:hover{transform:translateY(-1px); background:rgba(255,255,255,.08)}
+    .btn.primary{
+      border-color: rgba(124,92,255,.35);
+      background: linear-gradient(135deg, rgba(124,92,255,.35), rgba(22,217,255,.14));
+      box-shadow: 0 12px 28px rgba(124,92,255,.16);
+    }
+    .btn.good{
+      border-color: rgba(65,242,182,.35);
+      background: linear-gradient(135deg, rgba(65,242,182,.22), rgba(22,217,255,.10));
+    }
+    .btn.bad{
+      border-color: rgba(255,93,115,.35);
+      background: linear-gradient(135deg, rgba(255,93,115,.20), rgba(255,209,102,.08));
+    }
+    .btn[disabled]{
+      opacity:.55;
+      cursor:not-allowed;
+      transform:none !important;
+    }
+    .in{
+      width:100%;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid var(--stroke);
+      background:rgba(0,0,0,.18);
+      color:var(--text);
+      outline:none;
+      font-size:13px;
+    }
+    .in:focus{border-color: rgba(22,217,255,.45)}
+    .row{display:flex; gap:10px; flex-wrap:wrap}
+    .row > *{flex:1}
+    .mini{font-size:12px; color:var(--muted)}
+    .mono{font-family:var(--mono)}
+    .pill{
+      display:inline-flex; gap:6px; align-items:center;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid var(--stroke);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .dot{width:8px;height:8px;border-radius:99px;background:var(--muted2)}
+    .dot.good{background:var(--good)}
+    .dot.warn{background:var(--warn)}
+    .dot.bad{background:var(--bad)}
+
+    .tableWrap{overflow:auto; border-radius:16px; border:1px solid var(--stroke)}
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      min-width:720px;
+      background: rgba(0,0,0,.14);
+    }
+    th,td{
+      padding:10px 10px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      font-size:12.5px;
+      vertical-align:top;
+    }
+    th{
+      text-align:left;
+      position:sticky; top:0;
+      backdrop-filter: blur(10px);
+      background: rgba(16,18,32,.75);
+      color: rgba(255,255,255,.86);
+      letter-spacing:.3px;
+      z-index:2;
+    }
+    tr:hover td{background: rgba(255,255,255,.03)}
+    .k{color:rgba(255,255,255,.88); font-weight:650;}
+    .muted{color:var(--muted)}
+    .badge{
+      font-size:11px;
+      padding:5px 8px;
+      border-radius:999px;
+      border:1px solid var(--stroke);
+      background:rgba(255,255,255,.04);
+      color:var(--muted);
+      display:inline-block;
+      white-space:nowrap;
+    }
+    .badge.good{border-color: rgba(65,242,182,.35); color: rgba(65,242,182,.95)}
+    .badge.warn{border-color: rgba(255,209,102,.35); color: rgba(255,209,102,.95)}
+    .badge.bad{border-color: rgba(255,93,115,.35); color: rgba(255,93,115,.95)}
+
+    main{padding:18px 0 48px}
+    section.page{display:none}
+    section.page.active{display:block; animation: fade .2s ease}
+    @keyframes fade{from{opacity:.35; transform:translateY(4px)} to{opacity:1; transform:translateY(0)}}
+
+    .hero{
+      padding:18px;
+      border-radius: var(--radius2);
+      border:1px solid var(--stroke);
+      background:
+        radial-gradient(900px 420px at 20% 20%, rgba(124,92,255,.22), transparent 60%),
+        radial-gradient(900px 420px at 80% 30%, rgba(22,217,255,.16), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .hero:after{
+      content:"";
+      position:absolute; inset:-60%;
+      background: conic-gradient(from 220deg, transparent, rgba(255,255,255,.12), transparent);
+      animation: spin 12s linear infinite;
+      opacity:.55;
+    }
+    .hero .inner{position:relative; z-index:2}
+    .hero h3{margin:0 0 8px; font-size:18px; letter-spacing:.2px;}
+    .hero p{margin:0 0 14px; color:var(--muted); line-height:1.5; font-size:13px; max-width:72ch;}
+
+    .split{display:grid; grid-template-columns: 1fr 1fr; gap:14px;}
+    @media (max-width: 980px){ .split{grid-template-columns:1fr} }
+
+    .callout{
+      padding:14px;
+      border-radius:18px;
+      border:1px solid var(--stroke);
+      background: rgba(0,0,0,.16);
+    }
+    .callout h4{margin:0 0 6px; font-size:13px}
+    .callout p{margin:0; font-size:12px; color:var(--muted); line-height:1.5}
+    .footerNote{margin-top:14px; font-size:12px; color:var(--muted2); line-height:1.55;}
+    .empty{
+      padding:14px;
+      border-radius:18px;
+      border:1px dashed rgba(255,255,255,.18);
+      color:var(--muted);
+      background: rgba(0,0,0,.10);
+      font-size:12.5px;
+      line-height:1.6;
+    }
+    .toast{
+      position:fixed; bottom:16px; left:50%;
+      transform:translateX(-50%);
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid var(--stroke);
+      background: rgba(16,18,32,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      font-size:12.5px;
+      color: rgba(255,255,255,.86);
+      display:none;
+      z-index:200;
+    }
+    .sp{height:10px}
+    .right{display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap}
+    .hr{height:1px; background:rgba(255,255,255,.10); margin:14px 0}
+    .twocol{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    @media(max-width:980px){.twocol{grid-template-columns:1fr}}
+  </style>
+</head>
+
+<body>
+  <div class="noise"></div>
+
+  <header class="topbar">
+    <div class="wrap">
+      <div class="toprow">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"></div>
+          <div>
+            <h1>Mini Market ABC • Apriori Analyzer</h1>
+            <div class="sub">Upload Excel → Apriori (L1–L3) → Rules + Kesimpulan (Basis: <b>Kategori</b>)</div>
+          </div>
+        </div>
+        <nav>
+          <button class="tab active" data-go="home">🏠 Home</button>
+          <button class="tab" data-go="data">📦 Data</button>
+          <button class="tab" data-go="apriori">🧠 Apriori</button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- PAGE 1 -->
+    <section id="page-home" class="page active">
+      <div class="hero">
+        <div class="inner">
+          <h3>Analisis Pola Pembelian Produk di Mini Market ABC (Algoritma Apriori)</h3>
+          <p>
+            Web ini membaca <span class="mono">.xlsx</span>, menampilkan transaksi, lalu menghitung frequent itemset
+            (<span class="k">L1, L2, L3</span>) dan aturan asosiasi <b>berdasarkan kolom Kategori</b>.
+            Kamu bisa mengubah <span class="k">min.support</span> dan <span class="k">min.confidence</span> bebas.
+          </p>
+          <div class="row">
+            <label class="btn primary" style="flex:1; cursor:pointer;">
+              ⬆️ Upload Excel (.xlsx)
+              <input id="file" type="file" accept=".xlsx,.xls" style="display:none" />
+            </label>
+<button class="btn bad" id="btn-reset" title="Reset data">🧹 Reset</button>
+          </div>
+
+          <div class="sp"></div>
+
+          <div class="split">
+            <div class="callout">
+              <h4>Format Excel kamu</h4>
+              <p>
+                <b>No | Tanggal | Produk | Kategori</b><br/>
+                Aplikasi ini akan membaca itemset dari kolom <b>Kategori</b> yang dipisah koma:
+                <span class="mono">Susu, Roti, Chiki</span>
+              </p>
+            </div>
+            <div class="callout">
+              <h4>Output utama</h4>
+              <p>
+                • Ringkasan transaksi & kategori unik<br/>
+                • Tabel L1/L2/L3 (support count & support)<br/>
+                • Aturan asosiasi (support, confidence, lift)<br/>
+                • “Aturan terbaik”: kuat, representatif, non-redundan, mewakili L2 & L3
+              </p>
+            </div>
+          </div>
+
+          <div class="footerNote">
+            Aplikasi <span class="k">langsung di browser</span>. Tidak perlu XAMPP, tidak perlu database.
+          </div>
+        </div>
+      </div>
+
+      <div class="sp"></div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="hd">
+            <div class="title">
+              <h2>Status Dataset</h2>
+              <p>Informasi dataset setelah upload / demo.</p>
+            </div>
+            <span class="pill"><span class="dot warn" id="dotStatus"></span><span id="statusText">Belum ada data</span></span>
+          </div>
+          <div class="bd" id="homeSummary">
+            <div class="empty">
+              Upload Excel dulu (klik tombol Upload).
+              Setelah itu buka tab <span class="k">Data</span> lalu tab <span class="k">Apriori</span>.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">
+            <div class="title">
+              <h2>Kontrol Cepat</h2>
+              <p>Setting default (bisa kamu ubah di halaman Apriori).</p>
+            </div>
+          </div>
+          <div class="bd">
+            <div class="row">
+              <div>
+                <div class="mini">Min Support (%)</div>
+                <input class="in" id="quickSup" type="number" min="0" max="100" step="1" value="30">
+              </div>
+              <div>
+                <div class="mini">Min Confidence (%)</div>
+                <input class="in" id="quickConf" type="number" min="0" max="100" step="1" value="70">
+              </div>
+            </div>
+            <div class="sp"></div>
+            <button class="btn good" id="btn-go-apriori" style="width:100%;">🚀 Hitung Apriori Sekarang</button>
+            <div class="footerNote">
+              Pastikan data sudah di-upload sebelum menghitung.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 2 -->
+    <section id="page-data" class="page">
+      <div class="grid">
+        <div class="card">
+          <div class="hd">
+            <div class="title">
+              <h2>Data Transaksi (Tampilan sesuai Excel)</h2>
+              <p>Yang dianalisis hanya kolom <b>Kategori</b>, tetapi tampilan dibuat lengkap sesuai file.</p>
+            </div>
+            <div class="right">
+              <span class="badge" id="txCountBadge">0 transaksi</span>
+              <span class="badge" id="itemCountBadge">0 kategori unik</span>
+            </div>
+          </div>
+          <div class="bd" id="dataTableArea">
+            <div class="empty">Belum ada data. Upload Excel di tab Home.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">
+            <div class="title">
+              <h2>Preprocessing</h2>
+              <p>Kolom yang dibaca untuk analisis: <b>Kategori</b> (dipisah koma).</p>
+            </div>
+          </div>
+          <div class="bd" id="preprocessArea">
+            <div class="empty">
+              Setelah data masuk, panel ini akan menampilkan ringkasan pembacaan dan contoh kategori unik.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 3 -->
+    <section id="page-apriori" class="page">
+      <div class="card">
+        <div class="hd">
+          <div class="title">
+            <h2>Parameter Apriori</h2>
+            <p>Ubah threshold sesuka hati. Klik “Hitung” untuk hasil baru.</p>
+          </div>
+          <div class="right">
+            <button class="btn primary" id="btn-run">🧠 Hitung</button>
+            <button class="btn" id="btn-explain">📝 Tampilkan Penjelasan</button>
+            <button class="btn good" id="btn-export" disabled title="Hitung dulu agar hasil bisa diekspor">
+              📥 Export Excel
+            </button>
+          </div>
+        </div>
+
+        <div class="bd">
+          <div class="row">
+            <div>
+              <div class="mini">Min Support (%)</div>
+              <input class="in" id="minSup" type="number" min="0" max="100" step="1" value="30">
+              <div class="mini" style="margin-top:6px">Support = jumlah transaksi yang memuat itemset / total transaksi</div>
+            </div>
+            <div>
+              <div class="mini">Min Confidence (%)</div>
+              <input class="in" id="minConf" type="number" min="0" max="100" step="1" value="70">
+              <div class="mini" style="margin-top:6px">Confidence(X→Y) = support(X∪Y) / support(X)</div>
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="twocol">
+            <div class="callout">
+              <h4>Interpretasi cepat</h4>
+              <p>
+                • Support tinggi = pola sering muncul<br/>
+                • Confidence tinggi = aturan kuat<br/>
+                • Lift &gt; 1 = hubungan lebih sering dari kebetulan
+              </p>
+            </div>
+            <div class="callout">
+              <h4>Filter “aturan terbaik”</h4>
+              <p>
+                Sistem memilih aturan:
+                <br/>1) <b>paling kuat</b>
+                <br/>2) <b>paling representatif</b>
+                <br/>3) <b>non-redundan</b>
+                <br/>4) <b>mewakili L2 & L3</b>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sp"></div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="hd">
+            <div class="title">
+              <h2>Frequent Itemset (L1, L2, L3)</h2>
+              <p>Itemset kategori yang lolos min.support.</p>
+            </div>
+            <div class="right">
+              <span class="badge" id="freqBadge">Belum dihitung</span>
+            </div>
+          </div>
+          <div class="bd" id="freqArea">
+            <div class="empty">Klik “Hitung” untuk menampilkan L1/L2/L3.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">
+            <div class="title">
+              <h2>Aturan Asosiasi + Kesimpulan</h2>
+              <p>Aturan valid + ringkasan insight.</p>
+            </div>
+            <div class="right">
+              <span class="badge" id="ruleBadge">Belum dihitung</span>
+            </div>
+          </div>
+          <div class="bd" id="ruleArea">
+            <div class="empty">Klik “Hitung” untuk menampilkan aturan asosiasi.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sp"></div>
+
+      <div class="card" id="explainCard" style="display:none;">
+        <div class="hd">
+          <div class="title">
+            <h2>Penjelasan Perhitungan</h2>
+            <p>Ringkas tapi runtut (support, confidence, lift, L1–L3, aturan).</p>
+          </div>
+        </div>
+        <div class="bd" id="explainArea"></div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /**********************
+     *  STATE
+     **********************/
+    const state = {
+      fileMeta: null,
+      sheetName: null,
+      rawRows: [],
+      transactions: [],      // Array<Set<string>>
+      transactionLabels: [],
+      records: [],           // data lengkap (No, Tanggal, Produk, Kategori) untuk tampilan
+      items: [],
+      invalidCells: 0,
+      parseMode: null,
+      lastRun: null
+    };
+
+    /**********************
+     *  UI HELPERS
+     **********************/
+    const $ = (q) => document.querySelector(q);
+    const $$ = (q) => document.querySelectorAll(q);
+
+    function safeSheetName(name){
+  return String(name || "Sheet")
+    .replace(/[:\\\/\?\*\[\]]/g, " ")
+    .slice(0, 31)
+    .trim() || "Sheet";
+}
+
+    function toast(msg){
+      const t = $("#toast");
+      t.textContent = msg;
+      t.style.display = "block";
+      clearTimeout(toast._tm);
+      toast._tm = setTimeout(() => t.style.display = "none", 2200);
+    }
+
+    function setStatus(kind, text){
+      const dot = $("#dotStatus");
+      const st = $("#statusText");
+      dot.classList.remove("good","warn","bad");
+      dot.classList.add(kind);
+      st.textContent = text;
+    }
+
+    function go(page){
+      $$(".tab").forEach(b => b.classList.toggle("active", b.dataset.go === page));
+      $$(".page").forEach(s => s.classList.remove("active"));
+      $("#page-" + page).classList.add("active");
+      window.scrollTo({top:0, behavior:"smooth"});
+    }
+    $$(".tab").forEach(btn => btn.addEventListener("click", () => go(btn.dataset.go)));
+
+    /**********************
+     *  NORMALIZATION
+     **********************/
+    function normItem(x){
+      if (x == null) return "";
+      let s = String(x).trim();
+      if (!s) return "";
+      s = s.replace(/\s+/g, " ");
+      const letters = s.replace(/[^a-zA-Z]/g,"");
+      const lowerish = letters && (letters === letters.toLowerCase());
+      if (lowerish){
+        s = s.toLowerCase().split(" ").map(w => w ? (w[0].toUpperCase()+w.slice(1)) : w).join(" ");
+      }
+      return s;
+    }
+    function uniqSorted(arr){
+      return [...new Set(arr)].sort((a,b) => a.localeCompare(b, "id"));
+    }
+
+    // AUTO: max itemset length (dibatasi agar tidak terlalu berat di browser)
+    // Kamu bisa naikkan jika dataset kecil.
+    const AUTO_MAX_K = 6;
+
+
+    /**********************
+     *  EXCEL PARSER
+     **********************/
+    function parseExcel(arrayBuffer){
+      const wb = XLSX.read(arrayBuffer, {type:"array"});
+      const sheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+
+      const range = XLSX.utils.decode_range(ws["!ref"]);
+      const rows = [];
+      for (let R = range.s.r; R <= range.e.r; ++R){
+        const row = [];
+        for (let C = range.s.c; C <= range.e.c; ++C){
+          const addr = XLSX.utils.encode_cell({r:R,c:C});
+          const cell = ws[addr];
+          row.push(cell ? cell.v : null);
+        }
+        rows.push(row);
+      }
+      return {sheetName, rows};
+    }
+
+    /**********************
+     *  DETECT & BUILD TRANSACTIONS
+     *  Analisis: hanya kolom "Kategori"
+     *  Tampilan: simpan juga No/Tanggal/Produk/Kategori ke state.records
+     **********************/
+    function detectAndBuildTransactions(rows){
+      const cleaned = rows
+        .map(r => r.map(v => (v===undefined ? null : v)))
+        .filter(r => r.some(v => v!==null && String(v).trim()!==""));
+
+      if (!cleaned.length) {
+        return {transactions:[], labels:[], items:[], records:[], parseMode:null, invalidCells:0};
+      }
+
+      const header = cleaned[0].map(v => (v==null ? "" : String(v).trim()));
+      const body = cleaned.slice(1);
+      const headerLower = header.map(h => h.toLowerCase());
+
+      const idxNo = headerLower.indexOf("no");
+      const idxTanggal = headerLower.indexOf("tanggal");
+      const idxProduk = headerLower.indexOf("produk");
+      const idxKategori = headerLower.indexOf("kategori");
+
+      function fmtTanggal(v){
+        if (v == null || String(v).trim()==="") return "";
+        if (typeof v === "number" && window.XLSX?.SSF) {
+          return XLSX.SSF.format("dd/mm/yyyy", v);
+        }
+        return String(v).trim();
+      }
+
+      const transactions = [];
+      const labels = [];
+      const records = [];
+      let items = [];
+      let invalidCells = 0;
+
+      let col = idxKategori;
+      if (col === -1) col = idxProduk;
+      if (col === -1) col = 0;
+
+      const mode = "singleColumn";
+
+      body.forEach((r) => {
+        const rawKategori = r[col];
+        if (rawKategori == null || String(rawKategori).trim()===""){ invalidCells++; return; }
+
+        const parts = String(rawKategori).split(",").map(x => normItem(x)).filter(Boolean);
+        const set = new Set(parts);
+        if (!set.size){ invalidCells++; return; }
+
+        transactions.push(set);
+        labels.push("T" + (transactions.length));
+        items.push(...set);
+
+        records.push({
+          no: (idxNo !== -1 ? r[idxNo] : null),
+          tanggal: (idxTanggal !== -1 ? fmtTanggal(r[idxTanggal]) : ""),
+          produk: (idxProduk !== -1 ? (r[idxProduk] ?? "") : ""),
+          kategoriRaw: (idxKategori !== -1 ? String(r[idxKategori] ?? "").trim() : String(rawKategori).trim()),
+          kategoriList: [...set].sort((a,b)=>a.localeCompare(b,"id"))
+        });
+      });
+
+      items = uniqSorted(items);
+
+      return {transactions, labels, items, records, parseMode: mode, invalidCells};
+    }
+
+    /**********************
+     *  APRIORI CORE
+     **********************/
+    function setKey(arr){ return arr.slice().sort().join(" | "); }
+
+    function supportCount(transactions, itemsetArr){
+      let c = 0;
+      for (const t of transactions){
+        let ok = true;
+        for (const it of itemsetArr){
+          if (!t.has(it)) { ok=false; break; }
+        }
+        if (ok) c++;
+      }
+      return c;
+    }
+
+    function combinations(arr, k){
+      const res = [];
+      const n = arr.length;
+      if (k<0 || k>n) return res;
+      if (k===0) return [[]];
+      const idx = Array.from({length:k}, (_,i)=>i);
+      while(true){
+        res.push(idx.map(i=>arr[i]));
+        let i=k-1;
+        while(i>=0 && idx[i]===n-k+i) i--;
+        if(i<0) break;
+        idx[i]++;
+        for(let j=i+1;j<k;j++) idx[j]=idx[j-1]+1;
+      }
+      return res;
+    }
+
+    /**********************
+ *  ALL SUPPORT CANDIDATES (SEMUA kandidat L1-L3)
+ *  (bukan cuma yang lolos)
+ **********************/
+function buildAllSupportCandidates(transactions, items, minSup, maxK){
+  const N = transactions.length;
+  const rows = [];
+
+  function countItemset(itemset){
+    let c = 0;
+    for (const t of transactions){
+      let ok = true;
+      for (const it of itemset){
+        if (!t.has(it)) { ok = false; break; }
+      }
+      if (ok) c++;
+    }
+    return c;
+  }
+
+  for (let k = 1; k <= maxK; k++){
+    const combs = combinations(items, k);
+    for (const it of combs){
+      const cnt = countItemset(it);
+      const sup = (N > 0) ? (cnt / N) : 0;
+      rows.push({
+        Level: `L${k}`,
+        Itemset: it.join(", "),
+        Count: cnt,
+        N: N,
+        Support: Number(sup.toFixed(6)),
+        Support_Pct: Number((sup*100).toFixed(2)),
+        MinSupport: Number(minSup.toFixed(6)),
+        MinSupport_Pct: Number((minSup*100).toFixed(2)),
+        Status: (sup + 1e-12 >= minSup) ? "Lolos" : "Tidak Lolos"
+      });
+    }
+  }
+
+  // optional: urutkan biar rapi (Level -> Support desc -> Count desc)
+  rows.sort((a,b) =>
+    a.Level.localeCompare(b.Level) ||
+    (b.Support - a.Support) ||
+    (b.Count - a.Count) ||
+    a.Itemset.localeCompare(b.Itemset, "id")
+  );
+
+  return rows;
+}
+
+    function apriori(transactions, minSup, maxK=3){
+      const N = transactions.length;
+      const minCount = Math.ceil(minSup * N);
+
+      const itemCount = new Map();
+      for (const t of transactions){
+        for (const it of t){
+          itemCount.set(it, (itemCount.get(it)||0)+1);
+        }
+      }
+
+      let L = [];
+      for (const [it,c] of itemCount.entries()){
+        if (c >= minCount){
+          L.push({items:[it], count:c, support:c/N});
+        }
+      }
+      L.sort((a,b)=> b.count-a.count || setKey(a.items).localeCompare(setKey(b.items)));
+      const levels = {1:L};
+
+      let prevLevel = L.map(x => x.items.slice().sort());
+      let prevSet = new Set(prevLevel.map(setKey));
+
+      for (let k=2; k<=maxK; k++){
+        const candidates = new Map();
+        for (let i=0;i<prevLevel.length;i++){
+          for (let j=i+1;j<prevLevel.length;j++){
+            const a = prevLevel[i], b = prevLevel[j];
+            const prefixA = a.slice(0,k-2).join("|");
+            const prefixB = b.slice(0,k-2).join("|");
+            if (k>2 && prefixA !== prefixB) continue;
+
+            const merged = Array.from(new Set([...a, ...b])).sort();
+            if (merged.length !== k) continue;
+
+            const subs = combinations(merged, k-1);
+            let ok = true;
+            for (const s of subs){
+              if (!prevSet.has(setKey(s))) { ok=false; break; }
+            }
+            if (!ok) continue;
+
+            candidates.set(setKey(merged), merged);
+          }
+        }
+
+        const Lk = [];
+        for (const [key, items] of candidates.entries()){
+          const c = supportCount(transactions, items);
+          if (c >= minCount){
+            Lk.push({items, count:c, support:c/N});
+          }
+        }
+        Lk.sort((a,b)=> b.count-a.count || setKey(a.items).localeCompare(setKey(b.items)));
+        levels[k] = Lk;
+
+        prevLevel = Lk.map(x => x.items.slice());
+        prevSet = new Set(prevLevel.map(setKey));
+        if (!Lk.length) break;
+      }
+
+      const supMap = new Map();
+      for (const k of Object.keys(levels)){
+        for (const f of levels[k]){
+          supMap.set(setKey(f.items), {count:f.count, support:f.support});
+        }
+      }
+      return {levels, supMap, N, minCount};
+    }
+
+    function generateRules(ap, minConf){
+      const {levels, supMap, N} = ap;
+      const rules = [];
+
+      const allFrequent = [];
+      for (const kStr of Object.keys(levels)){
+        const k = Number(kStr);
+        if (k>=2){
+          for (const f of levels[k]) allFrequent.push(f.items);
+        }
+      }
+
+      for (const items of allFrequent){
+        for (let aSize=1; aSize<items.length; aSize++){
+          for (const A of combinations(items, aSize)){
+            const Akey = setKey(A);
+            const Ukey = setKey(items);
+            const supU = supMap.get(Ukey);
+            const supA = supMap.get(Akey) || {count:supportCount(state.transactions, A), support: supportCount(state.transactions, A)/N};
+            if (!supA || supA.count===0) continue;
+
+            const conf = supU.support / supA.support;
+            if (conf + 1e-12 < minConf) continue;
+
+            const B = items.filter(x => !A.includes(x));
+            const Bkey = setKey(B);
+            const supB = supMap.get(Bkey) || {count:supportCount(state.transactions, B), support: supportCount(state.transactions, B)/N};
+            const lift = (supB.support>0) ? (conf / supB.support) : Infinity;
+
+            rules.push({
+              A, B,
+              support: supU.support,
+              confidence: conf,
+              lift,
+              supCount: supU.count
+            });
+          }
+        }
+      }
+
+      rules.sort((r1,r2) =>
+        (r2.confidence-r1.confidence) ||
+        (r2.support-r1.support) ||
+        (r2.lift-r1.lift) ||
+        (setKey(r1.A).localeCompare(setKey(r2.A)))
+      );
+
+      return rules;
+    }
+
+    /**********************
+     *  BEST RULES
+     **********************/
+    function redundancyFilter(rules){
+      const eps = 1e-9;
+      const keep = [];
+      for (const r of rules){
+        let redundant = false;
+        for (const k of keep){
+          if (setKey(k.B) !== setKey(r.B)) continue;
+          const kA = new Set(k.A);
+          let subset = true;
+          for (const x of kA){
+            if (!r.A.includes(x)) { subset=false; break; }
+          }
+          if (subset && (k.confidence + eps >= r.confidence)){
+            redundant = true; break;
+          }
+        }
+        if (!redundant) keep.push(r);
+      }
+      return keep;
+    }
+
+    
+    function pickBestRules(rules){
+      if (!rules.length) return {
+        strongest:null,
+        representative:null,
+        coverL2:[],
+        coverL3:[],
+        nonRedundant:[]
+      };
+
+      const nonRedundant = redundancyFilter(rules);
+      const strongest = nonRedundant[0] || rules[0];
+
+      // representative = score harmonic mean of support & confidence
+      const scored = nonRedundant.map(r => {
+        const s = r.support, c = r.confidence;
+        const score = (s>0 && c>0) ? (2*s*c/(s+c)) : 0;
+        return {r, score};
+      }).sort((a,b) =>
+        (b.score-a.score) ||
+        (b.r.support-a.r.support) ||
+        (b.r.confidence-a.r.confidence)
+      );
+      const representative = scored[0]?.r || strongest;
+
+      // pick up to 2 rules representing L2 & L3 (by order: confidence desc already)
+      const coverL2 = nonRedundant.filter(r => (r.A.length + r.B.length) === 2).slice(0,2);
+      const coverL3 = nonRedundant.filter(r => (r.A.length + r.B.length) === 3).slice(0,2);
+
+      return {strongest, representative, coverL2, coverL3, nonRedundant};
+    }
+
+/**********************
+     *  RENDERERS
+     **********************/
+    function fmtPct(x){ return (x*100).toFixed(2) + "%"; }
+    function fmtLift(x){ return (!isFinite(x)) ? "∞" : x.toFixed(3); }
+    function ruleToText(r){ return `${r.A.join(", ")} → ${r.B.join(", ")}`; }
+
+    function renderHomeSummary(){
+      const area = $("#homeSummary");
+      if (!state.transactions.length){
+        area.innerHTML = `<div class="empty">Belum ada data. Upload Excel.</div>`;
+        setStatus("warn","Belum ada data");
+        return;
+      }
+      setStatus("good", "Data siap");
+      const ex = [...state.transactions[0]].slice(0,8).join(", ");
+      area.innerHTML = `
+        <div class="twocol">
+          <div class="callout">
+            <h4>Ringkasan</h4>
+            <p>
+              <span class="k">${state.transactions.length}</span> transaksi terbaca<br/>
+              <span class="k">${state.items.length}</span> kategori unik<br/>
+              Mode parsing: <span class="k">${state.parseMode}</span><br/>
+              Baris invalid/skip: <span class="k">${state.invalidCells}</span>
+            </p>
+          </div>
+          <div class="callout">
+            <h4>Contoh transaksi pertama (Kategori)</h4>
+            <p class="mono">${ex || "-"}</p>
+          </div>
+        </div>
+        <div class="footerNote">
+          Lanjut ke tab <span class="k">Data</span> atau langsung <span class="k">Apriori</span>.
+        </div>
+      `;
+    }
+
+    function renderDataPage(){
+      $("#txCountBadge").textContent = `${state.transactions.length} transaksi`;
+      $("#itemCountBadge").textContent = `${state.items.length} kategori unik`;
+
+      const dataArea = $("#dataTableArea");
+      if (!state.transactions.length){
+        dataArea.innerHTML = `<div class="empty">Belum ada data. Upload Excel di tab Home.</div>`;
+        $("#preprocessArea").innerHTML = `<div class="empty">Belum ada data untuk dianalisis.</div>`;
+        return;
+      }
+
+      const rows = state.records.map((rec, i) => ({
+        noExcel: (rec.no ?? (i+1)),
+        trx: state.transactionLabels[i] || ("T"+(i+1)),
+        tanggal: rec.tanggal || "-",
+        produk: (rec.produk ?? "-"),
+        kategoriRaw: (rec.kategoriRaw ?? "-"),
+        kategoriList: (rec.kategoriList ?? []),
+        jumlah: (rec.kategoriList?.length ?? 0)
+      }));
+
+      dataArea.innerHTML = `
+        <div class="tableWrap">
+          <table style="min-width:1150px">
+            <thead>
+              <tr>
+                <th style="width:90px">No</th>
+                <th style="width:130px">Transaksi</th>
+                <th style="width:150px">Tanggal</th>
+                <th style="width:280px">Produk</th>
+                <th style="width:240px">Kategori</th>
+                <th style="width:120px">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td>${r.noExcel}</td>
+                  <td class="mono"><span class="badge good">${r.trx}</span></td>
+                  <td class="mono">${r.tanggal}</td>
+                  <td>${String(r.produk).trim()==="" ? "-" : String(r.produk)}</td>
+                  <td>${String(r.kategoriRaw).trim()==="" ? "-" : String(r.kategoriRaw)}</td>
+                  <td><span class="badge good">${r.jumlah}</span></td>
+                </tr>
+                <tr>
+                  <td colspan="6" style="padding-top:0">
+                    <span class="muted">Items (hasil parsing kategori untuk analisis):</span><br/>
+                    ${r.kategoriList.map(x=>`<span class="badge">${x}</span>`).join(" ")}
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      const sampleItems = state.items.slice(0, 18);
+      $("#preprocessArea").innerHTML = `
+        <div class="callout">
+          <h4>Ringkasan pembacaan Excel</h4>
+          <p>
+            Sheet: <span class="k mono">${state.sheetName || "-"}</span><br/>
+            Kolom analisis: <span class="k">Kategori</span><br/>
+            Total transaksi: <span class="k">${state.transactions.length}</span><br/>
+            Total kategori unik: <span class="k">${state.items.length}</span><br/>
+            Baris invalid yang di-skip: <span class="k">${state.invalidCells}</span>
+          </p>
+        </div>
+        <div class="sp"></div>
+        <div class="callout">
+          <h4>Contoh kategori unik</h4>
+          <p>${sampleItems.map(x=>`<span class="badge">${x}</span>`).join(" ")}</p>
+        </div>
+      `;
+    }
+
+    function renderFreq(ap){
+      const area = $("#freqArea");
+      const levels = ap.levels;
+      const blocks = [];
+
+      for (const kStr of Object.keys(levels).sort((a,b)=>Number(a)-Number(b))){
+        const k = Number(kStr);
+        const Lk = levels[k];
+        if (!Lk || !Lk.length) continue;
+
+        blocks.push(`
+          <div class="callout">
+            <h4>L${k} • Frequent ${k}-Itemset</h4>
+            <div class="tableWrap" style="margin-top:10px">
+              <table style="min-width:680px">
+                <thead>
+                  <tr>
+                    <th style="width:72px">No</th>
+                    <th>Itemset (Kategori)</th>
+                    <th style="width:120px">Count</th>
+                    <th style="width:140px">Support</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Lk.map((x,idx)=>`
+                    <tr>
+                      <td>${idx+1}</td>
+                      <td>${x.items.map(it=>`<span class="badge">${it}</span>`).join(" ")}</td>
+                      <td><span class="badge good">${x.count}</span></td>
+                      <td><span class="badge">${fmtPct(x.support)}</span></td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `);
+      }
+
+      if (!blocks.length){
+        area.innerHTML = `<div class="empty">Tidak ada itemset yang lolos min.support. Coba turunkan min.support.</div>`;
+        $("#freqBadge").textContent = `0 itemset lolos`;
+        return;
+      }
+
+      const totalFreq = Object.values(levels).reduce((s,arr)=>s+(arr?.length||0),0);
+      $("#freqBadge").textContent = `${totalFreq} itemset lolos`;
+      area.innerHTML = blocks.join(`<div class="sp"></div>`);
+    }
+
+    function renderRules(rules, best, minSup, minConf){
+      const area = $("#ruleArea");
+      if (!rules.length){
+        area.innerHTML = `<div class="empty">
+          Tidak ada aturan yang lolos (min.support & min.confidence).<br/>
+          Coba turunkan min.confidence atau min.support.
+        </div>`;
+        $("#ruleBadge").textContent = `0 aturan valid`;
+        return;
+      }
+
+      $("#ruleBadge").textContent = `${rules.length} aturan valid`;
+
+      function bestCard(label, r, tone){
+        if (!r) return `
+          <div class="callout">
+            <h4>${label}</h4>
+            <p class="muted">Tidak tersedia.</p>
+          </div>
+        `;
+        const badgeTone = tone || "good";
+        return `
+          <div class="callout">
+            <h4>${label}</h4>
+            <p style="margin:8px 0 10px; font-size:13px">
+              <span class="k">${ruleToText(r)}</span>
+            </p>
+            <div class="row">
+              <span class="badge ${badgeTone}">Support: ${fmtPct(r.support)}</span>
+              <span class="badge ${badgeTone}">Confidence: ${fmtPct(r.confidence)}</span>
+              <span class="badge">Lift: ${fmtLift(r.lift)}</span>
+              <span class="badge">Count: ${r.supCount}</span>
+            </div>
+            <div class="footerNote">
+              Jika membeli <span class="k">${r.A.join(", ")}</span>, maka cenderung juga membeli <span class="k">${r.B.join(", ")}</span>.
+            </div>
+          </div>
+        `;
+      }
+
+      function bestCardMulti(label, arr, tone){
+        if (!arr || !arr.length) return `
+          <div class="callout">
+            <h4>${label}</h4>
+            <p class="muted">Tidak tersedia.</p>
+          </div>
+        `;
+        const badgeTone = tone || "good";
+        return `
+          <div class="callout">
+            <h4>${label}</h4>
+            ${arr.map((r, idx) => `
+              <div style="margin-top:${idx===0?8:12}px; padding-top:${idx===0?0:10}px; border-top:${idx===0?'none':'1px solid rgba(255,255,255,.10)'}">
+                <p style="margin:0 0 10px; font-size:13px">
+                  <span class="k">${ruleToText(r)}</span>
+                </p>
+                <div class="row">
+                  <span class="badge ${badgeTone}">Support: ${fmtPct(r.support)}</span>
+                  <span class="badge ${badgeTone}">Confidence: ${fmtPct(r.confidence)}</span>
+                  <span class="badge">Lift: ${fmtLift(r.lift)}</span>
+                  <span class="badge">Count: ${r.supCount}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
+      const strongest = best.strongest;
+      const rep = best.representative;
+
+      const topShow = Math.min(rules.length, 40);
+      const tbl = `
+        <div class="callout">
+          <h4>Daftar aturan valid (Jumlah ${topShow})</h4>
+          <div class="tableWrap" style="margin-top:10px">
+            <table style="min-width:820px">
+              <thead>
+                <tr>
+                  <th style="width:70px">No</th>
+                  <th>Aturan</th>
+                  <th style="width:140px">Support</th>
+                  <th style="width:160px">Confidence</th>
+                  <th style="width:110px">Lift</th>
+                  <th style="width:110px">Ukuran</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rules.slice(0, topShow).map((r,idx)=>`
+                  <tr>
+                    <td>${idx+1}</td>
+                    <td><span class="k">${ruleToText(r)}</span></td>
+                    <td><span class="badge">${fmtPct(r.support)}</span></td>
+                    <td><span class="badge good">${fmtPct(r.confidence)}</span></td>
+                    <td><span class="badge">${fmtLift(r.lift)}</span></td>
+                    <td><span class="badge">${r.A.length + r.B.length}</span></td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      area.innerHTML = `
+        <div class="twocol">
+          ${bestCard("1) Aturan Paling Kuat (confidence tertinggi)", best.strongest, "good")}
+          ${bestCard("2) Aturan Paling Representatif (support+confidence seimbang)", best.representative, "warn")}
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="twocol">
+          ${bestCardMulti("3) Perwakilan L2 (maks. 2 aturan dari 2-itemset)", best.coverL2, "good")}
+          ${bestCardMulti("4) Perwakilan L3 (maks. 2 aturan dari 3-itemset)", best.coverL3, "good")}
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="callout">
+          <h4>Non-redundan (ringkas)</h4>
+          <p class="muted" style="margin:0 0 10px">
+            Versi yang dibersihkan agar tidak mengulang makna.
+          </p>
+          <p style="margin:0">
+            ${best.nonRedundant.slice(0, 10).map(r=>`<span class="badge">${ruleToText(r)}</span>`).join(" ")}
+          </p>
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="callout">
+          <h4>Kesimpulan (berdasarkan threshold saat ini)</h4>
+          <ul style="margin:8px 0 0; padding-left:18px; color:rgba(255,255,255,.80); line-height:1.6; font-size:13px">
+            <li>Dengan <b>min.support = ${(minSup*100).toFixed(0)}%</b> dan <b>min.confidence = ${(minConf*100).toFixed(0)}%</b>, ditemukan <b>${rules.length}</b> aturan asosiasi valid.</li>
+            ${strongest ? `<li>Aturan terkuat: <b>${ruleToText(strongest)}</b> (confidence <b>${fmtPct(strongest.confidence)}</b>, support <b>${fmtPct(strongest.support)}</b>).</li>` : ``}
+            ${rep ? `<li>Aturan representatif: <b>${ruleToText(rep)}</b> (seimbang antara frekuensi dan kekuatan aturan).</li>` : ``}
+            <li>Daftar non-redundan membantu fokus pada aturan inti yang tidak berulang makna.</li>
+          </ul>
+        </div>
+
+        <div class="sp"></div>
+
+        ${tbl}
+      `;
+    }
+
+    function renderExplain(ap, rules, minSup, minConf){
+      const N = ap.N;
+      const minCount = ap.minCount;
+      const L1 = ap.levels[1] || [];
+      const L2 = ap.levels[2] || [];
+      const L3 = ap.levels[3] || [];
+      const exL1 = L1[0];
+      const exL2 = L2[0];
+      const exL3 = L3[0];
+      const exRule = rules[0];
+
+      $("#explainArea").innerHTML = `
+        <div class="callout">
+          <h4>1) Definisi</h4>
+          <p>
+            <b>Support(Itemset)</b> = (jumlah transaksi memuat itemset) / (total transaksi).<br/>
+            <b>Confidence(X→Y)</b> = support(X∪Y) / support(X).<br/>
+            <b>Lift(X→Y)</b> = confidence(X→Y) / support(Y).
+          </p>
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="callout">
+          <h4>2) Threshold saat ini</h4>
+          <p>
+            Total transaksi: <span class="k">${N}</span><br/>
+            Min support: <span class="k">${(minSup*100).toFixed(0)}%</span> → minimal count = <span class="k">ceil(${minSup.toFixed(2)} × ${N}) = ${minCount}</span><br/>
+            Min confidence: <span class="k">${(minConf*100).toFixed(0)}%</span>
+          </p>
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="callout">
+          <h4>3) Alur L1 → L2 → L3 → dst</h4>
+          <p>
+            • <b>L1</b>: hitung frekuensi setiap kategori, pilih yang count ≥ ${minCount}.<br/>
+            • <b>L2</b>: gabungkan kategori dari L1 menjadi pasangan, hitung support, pilih yang lolos.<br/>
+            • <b>L3</b>: gabungkan pasangan dari L2 (dengan pruning subset), hitung support, pilih yang lolos.<br/>
+            • <b>dst</b>: gabungkan pasangan dari sebelumnya (dengan pruning subset), hitung support, pilih yang lolos.
+          </p>
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="twocol">
+          <div class="callout">
+            <h4>Contoh L1</h4>
+            ${exL1 ? `
+              <p>
+                Misal kategori <b>${exL1.items[0]}</b> muncul <b>${exL1.count}</b> kali dari <b>${N}</b> transaksi.<br/>
+                Support = ${exL1.count}/${N} = <b>${fmtPct(exL1.support)}</b>.
+              </p>
+            ` : `<p class="muted">Tidak ada L1 yang lolos threshold.</p>`}
+          </div>
+
+          <div class="callout">
+            <h4>Contoh L2</h4>
+            ${exL2 ? `
+              <p>
+                Misal pasangan <b>${exL2.items.join(" & ")}</b> muncul <b>${exL2.count}</b> kali.<br/>
+                Support = ${exL2.count}/${N} = <b>${fmtPct(exL2.support)}</b>.
+              </p>
+            ` : `<p class="muted">Tidak ada L2 yang lolos threshold.</p>`}
+          </div>
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="callout">
+          <h4>Contoh L3</h4>
+          ${exL3 ? `
+            <p>
+              Misal kombinasi <b>${exL3.items.join(" & ")}</b> muncul <b>${exL3.count}</b> kali.<br/>
+              Support = ${exL3.count}/${N} = <b>${fmtPct(exL3.support)}</b>.
+            </p>
+          ` : `<p class="muted">Tidak ada L3 yang lolos threshold.</p>`}
+        </div>
+
+        <div class="sp"></div>
+
+        <div class="callout">
+          <h4>4) Aturan Asosiasi</h4>
+          <p>
+            Dari setiap frequent itemset (ukuran ≥ 2), dibentuk aturan dengan memecahnya menjadi Antecedent (X) dan Consequent (Y),
+            lalu dihitung confidence. Aturan valid adalah yang confidence ≥ ${(minConf*100).toFixed(0)}%.
+          </p>
+          ${exRule ? `
+            <div class="hr"></div>
+            <p style="margin:0">
+              Contoh aturan teratas saat ini: <b>${ruleToText(exRule)}</b><br/>
+              Support = <b>${fmtPct(exRule.support)}</b>, Confidence = <b>${fmtPct(exRule.confidence)}</b>, Lift = <b>${fmtLift(exRule.lift)}</b>.
+            </p>
+          ` : ``}
+        </div>
+      `;
+    }
+
+    /**********************
+     *  EXPORT EXCEL (FULL)
+     **********************/
+    function aoaSheet(aoa){
+      return XLSX.utils.aoa_to_sheet(aoa);
+    }
+
+    function autoColsFromRows(rows){
+      const keys = Object.keys(rows?.[0] || {});
+      return keys.map(k => ({wch: Math.min(60, Math.max(12, k.length + 2))}));
+    }
+
+    function exportAprioriToExcel(){
+      if (!state.lastRun){
+        toast("Belum ada hasil. Klik Hitung dulu.");
+        return;
+      }
+
+      const {minSup, minConf, maxK, ap, rules, best} = state.lastRun;
+
+      const wb = XLSX.utils.book_new();
+
+      // -------- Sheet: Ringkasan
+      const ringkasanAOA = [
+        ["Ringkasan Export Apriori (Basis: Kategori)"],
+        ["Tanggal Export", new Date().toLocaleString("id-ID")],
+        [],
+        ["File", state.fileMeta?.name || "(demo / tidak ada file)"],
+        ["Sheet Asal", state.sheetName || "-"],
+        ["Total Transaksi (N)", ap.N],
+        ["Total Kategori Unik", state.items.length],
+        ["Min Support (%)", Number((minSup*100).toFixed(0))],
+        ["Min Confidence (%)", Number((minConf*100).toFixed(0))],
+        ["Max K", maxK],
+        ["Min Count", ap.minCount],
+        [],
+        ["Jumlah Frequent Itemset L1", (ap.levels[1]||[]).length],
+        ["Jumlah Frequent Itemset L2", (ap.levels[2]||[]).length],
+        ["Jumlah Frequent Itemset L3", (ap.levels[3]||[]).length],
+        ["Jumlah Rules Valid", rules.length],
+        ["Jumlah Rules Non-Redundant", (best.nonRedundant||[]).length],
+      ];
+      const wsRing = aoaSheet(ringkasanAOA);
+      wsRing["!cols"] = [{wch:26},{wch:60}];
+      XLSX.utils.book_append_sheet(wb, wsRing, "Ringkasan");
+
+      // -------- Sheet: DataExcelAsli
+      const dataRows = (state.records || []).map((rec, idx) => ({
+        No: (rec.no ?? (idx+1)),
+        Transaksi: state.transactionLabels?.[idx] || ("T"+(idx+1)),
+        Tanggal: rec.tanggal || "",
+        Produk: (rec.produk ?? ""),
+        Kategori: (rec.kategoriRaw ?? ""),
+        Items_Parsing: (rec.kategoriList || []).join(", "),
+        Jumlah_Items: (rec.kategoriList || []).length
+      }));
+      const wsData = XLSX.utils.json_to_sheet(dataRows);
+      wsData["!cols"] = [
+        {wch:8},{wch:12},{wch:14},{wch:30},{wch:30},{wch:40},{wch:12}
+      ];
+      XLSX.utils.book_append_sheet(wb, wsData, "DataExcelAsli");
+
+      // -------- Sheet: L1 L2 L3
+      function sheetLevel(k){
+        const Lk = ap.levels[k] || [];
+        const rows = Lk.map((x,i)=>({
+          No: i+1,
+          Itemset: x.items.join(", "),
+          Count: x.count,
+          Support: Number((x.support).toFixed(6)),
+          Support_Pct: Number((x.support*100).toFixed(2))
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        ws["!cols"] = [{wch:6},{wch:40},{wch:10},{wch:12},{wch:12}];
+        XLSX.utils.book_append_sheet(wb, ws, `L${k}`);
+      }
+      sheetLevel(1);
+      sheetLevel(2);
+      if (maxK >= 3) sheetLevel(3);
+
+      // -------- Sheet: Rules_All
+      const rulesAllRows = rules.map((r,i)=>({
+        No: i+1,
+        Antecedent_X: r.A.join(", "),
+        Consequent_Y: r.B.join(", "),
+        Aturan: `${r.A.join(", ")} -> ${r.B.join(", ")}`,
+        Support: Number(r.support.toFixed(6)),
+        Support_Pct: Number((r.support*100).toFixed(2)),
+        Confidence: Number(r.confidence.toFixed(6)),
+        Confidence_Pct: Number((r.confidence*100).toFixed(2)),
+        Lift: isFinite(r.lift) ? Number(r.lift.toFixed(6)) : "Infinity",
+        Count_Support: r.supCount,
+        Ukuran: (r.A.length + r.B.length)
+      }));
+      const wsRules = XLSX.utils.json_to_sheet(rulesAllRows);
+      wsRules["!cols"] = [{wch:6},{wch:28},{wch:28},{wch:55},{wch:12},{wch:12},{wch:12},{wch:14},{wch:10},{wch:14},{wch:8}];
+      XLSX.utils.book_append_sheet(wb, wsRules, "Rules_All");
+
+      // -------- Sheet: BestRules
+      function bestRow(label, r){
+        if (!r) return {Label: label, Aturan:"-", Support_Pct:"-", Confidence_Pct:"-", Lift:"-"};
+        return {
+          Label: label,
+          Aturan: `${r.A.join(", ")} -> ${r.B.join(", ")}`,
+          Support_Pct: Number((r.support*100).toFixed(2)),
+          Confidence_Pct: Number((r.confidence*100).toFixed(2)),
+          Lift: isFinite(r.lift) ? Number(r.lift.toFixed(3)) : "Infinity"
+        };
+      }
+      
+      const bestRows = [
+        bestRow("1) Paling Kuat (confidence tertinggi)", best.strongest),
+        bestRow("2) Paling Representatif (support+confidence seimbang)", best.representative),
+
+        // Perwakilan L2 (maks 2)
+        bestRow("3) Perwakilan L2 - #1", best.coverL2?.[0] || null),
+        bestRow("3) Perwakilan L2 - #2", best.coverL2?.[1] || null),
+
+        // Perwakilan L3 (maks 2)
+        bestRow("4) Perwakilan L3 - #1", best.coverL3?.[0] || null),
+        bestRow("4) Perwakilan L3 - #2", best.coverL3?.[1] || null),
+      ];
+      const wsBest = XLSX.utils.json_to_sheet(bestRows);
+      wsBest["!cols"] = [{wch:40},{wch:55},{wch:14},{wch:16},{wch:10}];
+      XLSX.utils.book_append_sheet(wb, wsBest, "BestRules");
+
+      // -------- Sheet: NonRedundant
+      const nonRed = (best.nonRedundant || []).map((r,i)=>({
+        No: i+1,
+        Aturan: `${r.A.join(", ")} -> ${r.B.join(", ")}`,
+        Support_Pct: Number((r.support*100).toFixed(2)),
+        Confidence_Pct: Number((r.confidence*100).toFixed(2)),
+        Lift: isFinite(r.lift) ? Number(r.lift.toFixed(3)) : "Infinity",
+        Ukuran: (r.A.length + r.B.length)
+      }));
+      const wsNR = XLSX.utils.json_to_sheet(nonRed);
+      wsNR["!cols"] = [{wch:6},{wch:55},{wch:14},{wch:16},{wch:10},{wch:10}];
+      XLSX.utils.book_append_sheet(wb, wsNR, "NonRedundant");
+
+      // -------- Sheet: Perhitungan_Support (support count + support untuk L1/L2/L3)
+      // Isi: semua kandidat frequent yang lolos (L1/L2/L3) + count + support
+      const supportCalcRows = [];
+      const addSupportRows = (k) => {
+        const Lk = ap.levels[k] || [];
+        for (let i=0;i<Lk.length;i++){
+          const x = Lk[i];
+          supportCalcRows.push({
+            Level: `L${k}`,
+            No: i+1,
+            Itemset: x.items.join(", "),
+            Count: x.count,
+            N: ap.N,
+            Support: Number(x.support.toFixed(6)),
+            Support_Pct: Number((x.support*100).toFixed(2)),
+            Lolos_MinCount: (x.count >= ap.minCount) ? "YA" : "TIDAK"
+          });
+        }
+      };
+      addSupportRows(1);
+      addSupportRows(2);
+      if (maxK >= 3) addSupportRows(3);
+
+      const wsSup = XLSX.utils.json_to_sheet(supportCalcRows);
+      wsSup["!cols"] = [{wch:8},{wch:6},{wch:50},{wch:10},{wch:8},{wch:12},{wch:12},{wch:14}];
+      XLSX.utils.book_append_sheet(wb, wsSup, "Perhitungan_Support");
+
+      // -------- Sheet: Perhitungan_Confidence (tabel skripsi: X→Y, support, confidence, lift)
+      // Support(X), Support(Y), Support(X∪Y), Confidence, Lift
+      const confRows = rules.map((r,i)=> {
+        const Akey = setKey(r.A);
+        const Bkey = setKey(r.B);
+        const U = [...r.A, ...r.B];
+        const Ukey = setKey(U);
+
+        const supA = ap.supMap.get(Akey) || {count: supportCount(state.transactions, r.A), support: supportCount(state.transactions, r.A)/ap.N};
+        const supB = ap.supMap.get(Bkey) || {count: supportCount(state.transactions, r.B), support: supportCount(state.transactions, r.B)/ap.N};
+        const supU = ap.supMap.get(Ukey) || {count: supportCount(state.transactions, U), support: supportCount(state.transactions, U)/ap.N};
+
+        const conf = (supA.support>0) ? (supU.support / supA.support) : 0;
+        const lift = (supB.support>0) ? (conf / supB.support) : Infinity;
+
+        return {
+          No: i+1,
+          Aturan: `${r.A.join(", ")} -> ${r.B.join(", ")}`,
+          Support_X: Number(supA.support.toFixed(6)),
+          Support_Y: Number(supB.support.toFixed(6)),
+          Support_XUY: Number(supU.support.toFixed(6)),
+          Support_XUY_Pct: Number((supU.support*100).toFixed(2)),
+          Confidence: Number(conf.toFixed(6)),
+          Confidence_Pct: Number((conf*100).toFixed(2)),
+          Lift: isFinite(lift) ? Number(lift.toFixed(6)) : "Infinity",
+          Keterangan: (conf + 1e-12 >= minConf) ? "Valid" : "Tidak"
+        };
+      });
+      const wsConf = XLSX.utils.json_to_sheet(confRows);
+      wsConf["!cols"] = [{wch:6},{wch:55},{wch:12},{wch:12},{wch:12},{wch:16},{wch:12},{wch:16},{wch:10},{wch:12}];
+      XLSX.utils.book_append_sheet(wb, wsConf, "Perhitungan_Confidence");
+
+      // -------- Sheet: Penjelasan (rapi)
+      function penjelasanToAoa(){
+        const N = ap.N;
+        const minCount = ap.minCount;
+
+        const L1 = ap.levels[1] || [];
+        const L2 = ap.levels[2] || [];
+        const L3 = ap.levels[3] || [];
+
+        const exL1 = L1[0] || null;
+        const exL2 = L2[0] || null;
+        const exL3 = L3[0] || null;
+
+        const exRule = rules[0] || null;
+
+        const aoa = [];
+        aoa.push(["Penjelasan Perhitungan Apriori (Basis: Kategori)"]);
+        aoa.push(["Tanggal Export", new Date().toLocaleString("id-ID")]);
+        aoa.push([]);
+
+        aoa.push(["1) Definisi"]);
+        aoa.push(["Support(Itemset)", "jumlah transaksi memuat itemset / total transaksi"]);
+        aoa.push(["Confidence(X→Y)", "support(X∪Y) / support(X)"]);
+        aoa.push(["Lift(X→Y)", "confidence(X→Y) / support(Y)"]);
+        aoa.push([]);
+
+        aoa.push(["2) Threshold saat ini"]);
+        aoa.push(["Total transaksi (N)", N]);
+        aoa.push(["Min support (%)", Number((minSup*100).toFixed(0))]);
+        aoa.push(["Min confidence (%)", Number((minConf*100).toFixed(0))]);
+        aoa.push(["Min count", `ceil(${minSup.toFixed(2)} × ${N}) = ${minCount}`]);
+        aoa.push([]);
+
+        aoa.push(["3) Alur L1 → L2 → L3 → dst"]);
+        aoa.push(["L1", `Hitung frekuensi setiap kategori, ambil yang count ≥ ${minCount}`]);
+        aoa.push(["L2", `Gabungkan item L1 menjadi pasangan, hitung support, ambil yang lolos`]);
+        aoa.push(["L3", `Gabungkan pasangan L2 (pruning subset), hitung support, ambil yang lolos`]);
+        aoa.push(["dst"]);
+        aoa.push([]);
+
+        aoa.push(["4) Contoh Perhitungan (berdasarkan hasil saat ini)"]);
+        if (exL1){
+          aoa.push(["Contoh L1", `${exL1.items[0]} muncul ${exL1.count} kali dari ${N} transaksi`]);
+          aoa.push(["Support L1", `${exL1.count}/${N} = ${(exL1.support*100).toFixed(2)}%`]);
+        } else {
+          aoa.push(["Contoh L1", "Tidak ada L1 yang lolos threshold"]);
+        }
+        aoa.push([]);
+
+        if (exL2){
+          aoa.push(["Contoh L2", `${exL2.items.join(" & ")} muncul ${exL2.count} kali`]);
+          aoa.push(["Support L2", `${exL2.count}/${N} = ${(exL2.support*100).toFixed(2)}%`]);
+        } else {
+          aoa.push(["Contoh L2", "Tidak ada L2 yang lolos threshold"]);
+        }
+        aoa.push([]);
+
+        if (maxK >= 3){
+          if (exL3){
+            aoa.push(["Contoh L3", `${exL3.items.join(" & ")} muncul ${exL3.count} kali`]);
+            aoa.push(["Support L3", `${exL3.count}/${N} = ${(exL3.support*100).toFixed(2)}%`]);
+          } else {
+            aoa.push(["Contoh L3", "Tidak ada L3 yang lolos threshold"]);
+          }
+          aoa.push([]);
+        }
+
+        aoa.push(["5) Aturan Asosiasi"]);
+        aoa.push(["Aturan valid", `confidence ≥ ${(minConf*100).toFixed(0)}% (dari frequent itemset ukuran ≥ 2)`]);
+        if (exRule){
+          aoa.push(["Contoh aturan teratas", `${exRule.A.join(", ")} -> ${exRule.B.join(", ")}`]);
+          aoa.push(["Support (%)", (exRule.support*100).toFixed(2)]);
+          aoa.push(["Confidence (%)", (exRule.confidence*100).toFixed(2)]);
+          aoa.push(["Lift", isFinite(exRule.lift) ? exRule.lift.toFixed(3) : "∞"]);
+        } else {
+          aoa.push(["Contoh aturan", "Tidak ada aturan valid pada threshold ini"]);
+        }
+        aoa.push([]);
+
+        aoa.push(["6) Kesimpulan singkat"]);
+        aoa.push(["Jumlah aturan valid", rules.length]);
+        if (best?.strongest){
+          aoa.push(["Aturan terkuat", `${best.strongest.A.join(", ")} -> ${best.strongest.B.join(", ")}`]);
+          aoa.push(["Confidence terkuat (%)", (best.strongest.confidence*100).toFixed(2)]);
+          aoa.push(["Support terkuat (%)", (best.strongest.support*100).toFixed(2)]);
+        }
+        if (best?.representative){
+          aoa.push(["Aturan representatif", `${best.representative.A.join(", ")} -> ${best.representative.B.join(", ")}`]);
+        }
+        aoa.push(["Catatan", "Non-redundan membantu fokus pada aturan inti yang tidak mengulang makna."]);
+
+        return aoa;
+      }
+
+      const wsExplain = aoaSheet(penjelasanToAoa());
+      wsExplain["!cols"] = [{wch:26},{wch:80}];
+      XLSX.utils.book_append_sheet(wb, wsExplain, "Penjelasan");
+
+            // -------- Sheet: Support_AllCandidates
+      // Berisi semua kandidat itemset (L1, L2, L3) + status lolos/tidak lolos
+      const allCandidates = buildAllSupportCandidates(
+        state.transactions,
+        state.items,
+        minSup,
+        maxK
+      );
+
+      const wsAllSup = XLSX.utils.json_to_sheet(
+        allCandidates.map((r,i)=>({
+          No: i+1,
+          Level: r.Level,
+          Itemset: r.Itemset,
+          Count: r.Count,
+          "Total Transaksi (N)": r.N,
+          Support: r.Support,
+          "Support (%)": r.Support_Pct,
+          "Min Support": r.MinSupport,
+          "Min Support (%)": r.MinSupport_Pct,
+          Status: r.Status
+        }))
+      );
+
+      wsAllSup["!cols"] = [
+        {wch:6},   // No
+        {wch:8},   // Level
+        {wch:55},  // Itemset
+        {wch:10},  // Count
+        {wch:18},  // N
+        {wch:12},  // Support
+        {wch:12},  // Support %
+        {wch:12},  // MinSup
+        {wch:14},  // MinSup %
+        {wch:14}   // Status
+      ];
+
+      XLSX.utils.book_append_sheet(wb, wsAllSup, safeSheetName("Support_AllCandidates"));
+
+      // -------- Save file
+      const safeName = (state.fileMeta?.name ? state.fileMeta.name.replace(/\.[^/.]+$/, "") : "apriori");
+      const fname = `Export_Apriori_${safeName}_${new Date().toISOString().slice(0,10)}.xlsx`;
+      XLSX.writeFile(wb, fname);
+      toast("Export Excel berhasil.");
+    }
+
+    /**********************
+     *  RUN PIPELINE
+     **********************/
+    
+    function runAprioriAndRender(){
+      const minSup = Math.max(0, Math.min(100, Number($("#minSup").value || 0))) / 100;
+      const minConf = Math.max(0, Math.min(100, Number($("#minConf").value || 0))) / 100;
+      const maxK = Math.max(2, Math.min(state.items.length || 2, AUTO_MAX_K));
+
+      if (state.transactions.length === 0){
+        toast("Tidak ada transaksi untuk dihitung.");
+        return;
+      }
+
+      const ap = apriori(state.transactions, minSup, maxK);
+      const rules = generateRules(ap, minConf);
+      const best = pickBestRules(rules);
+
+      state.lastRun = {minSup, minConf, maxK, ap, rules, best};
+
+      renderFreq(ap);
+      renderRules(rules, best, minSup, minConf);
+
+      if ($("#explainCard").style.display !== "none"){
+        renderExplain(ap, rules, minSup, minConf);
+      }
+
+      // enable export
+      $("#btn-export").disabled = false;
+      $("#btn-export").title = "Download hasil ke Excel (.xlsx)";
+
+      toast(`Selesai: ${rules.length} aturan valid.`);
+    }
+
+    /**********************
+     *  DEMO DATA (KATEGORI)
+     **********************/
+
+    function resetAll(){
+      state.fileMeta = null;
+      state.sheetName = null;
+      state.rawRows = [];
+      state.transactions = [];
+      state.transactionLabels = [];
+      state.records = [];
+      state.items = [];
+      state.invalidCells = 0;
+      state.parseMode = null;
+      state.lastRun = null;
+
+      $("#dataTableArea").innerHTML = `<div class="empty">Belum ada data. Upload Excel di tab Home.</div>`;
+      $("#preprocessArea").innerHTML = `<div class="empty">Belum ada data untuk dianalisis.</div>`;
+      $("#freqArea").innerHTML = `<div class="empty">Klik “Hitung” untuk menampilkan L1/L2/L3.</div>`;
+      $("#ruleArea").innerHTML = `<div class="empty">Klik “Hitung” untuk menampilkan aturan asosiasi.</div>`;
+      $("#freqBadge").textContent = "Belum dihitung";
+      $("#ruleBadge").textContent = "Belum dihitung";
+
+      $("#explainCard").style.display = "none";
+      $("#explainArea").innerHTML = "";
+
+      $("#btn-export").disabled = true;
+      $("#btn-export").title = "Hitung dulu agar hasil bisa diekspor";
+
+      setStatus("warn","Belum ada data");
+      $("#homeSummary").innerHTML = `<div class="empty">Upload Excel dulu untuk mulai analisis.</div>`;
+
+      toast("Reset selesai.");
+    }
+
+    /**********************
+     *  EVENTS
+     **********************/
+    $("#btn-reset").addEventListener("click", resetAll);
+
+    $("#btn-go-apriori").addEventListener("click", () => {
+      $("#minSup").value = $("#quickSup").value;
+      $("#minConf").value = $("#quickConf").value;
+      if (!state.transactions.length){
+        toast("Belum ada data. Upload Excel dulu di tab Home.");
+        go("home");
+        return;
+      }
+      go("apriori");
+      runAprioriAndRender();
+    });
+
+    $("#btn-run").addEventListener("click", runAprioriAndRender);
+
+    $("#btn-export").addEventListener("click", () => {
+      exportAprioriToExcel();
+    });
+
+    $("#btn-explain").addEventListener("click", () => {
+      if (!state.lastRun){
+        if (!state.transactions.length){ toast("Belum ada data. Upload Excel dulu."); go("home"); return; }
+        runAprioriAndRender();
+      }
+      const c = $("#explainCard");
+      const show = (c.style.display === "none");
+      c.style.display = show ? "block" : "none";
+      if (show){
+        const {ap, rules, minSup, minConf} = state.lastRun;
+        renderExplain(ap, rules, minSup, minConf);
+        toast("Panel penjelasan ditampilkan.");
+      } else {
+        toast("Panel penjelasan disembunyikan.");
+      }
+    });
+
+    $("#file").addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      try{
+        const buf = await f.arrayBuffer();
+        const {sheetName, rows} = parseExcel(buf);
+
+        state.fileMeta = {name:f.name, size:f.size};
+        state.sheetName = sheetName;
+        state.rawRows = rows;
+
+        const built = detectAndBuildTransactions(rows);
+        state.transactions = built.transactions;
+        state.transactionLabels = built.labels;
+        state.items = built.items;
+        state.records = built.records;
+        state.parseMode = built.parseMode;
+        state.invalidCells = built.invalidCells;
+
+        state.lastRun = null;
+        $("#btn-export").disabled = true;
+        $("#btn-export").title = "Hitung dulu agar hasil bisa diekspor";
+
+        if (!state.transactions.length){
+          setStatus("bad","Data terbaca 0 transaksi");
+          toast("Excel terbaca, tapi transaksi kategori tidak terdeteksi. Pastikan kolom 'Kategori' berisi daftar dipisah koma.");
+        } else {
+          setStatus("good",`Data siap • ${state.transactions.length} transaksi`);
+          toast(`Upload sukses: ${state.transactions.length} transaksi (Kategori).`);
+        }
+
+        renderHomeSummary();
+        renderDataPage();
+        go("data");
+      } catch(err){
+        console.error(err);
+        setStatus("bad","Gagal membaca Excel");
+        toast("Gagal membaca Excel. Pastikan file .xlsx valid.");
+      }
+    });
+
+    $("#quickSup").addEventListener("input", () => $("#minSup").value = $("#quickSup").value);
+    $("#quickConf").addEventListener("input", () => $("#minConf").value = $("#quickConf").value);
+
+    setStatus("warn","Belum ada data");
+  </script>
+</body>
+</html>
